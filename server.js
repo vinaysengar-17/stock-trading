@@ -13,8 +13,10 @@ app.use(express.json());
 // Connect to DB
 connectDB();
 
-// Routes
+// Mount the Trade API routes
 app.use("/api/trades", tradeRoutes);
+
+// Mount the Lots API routes
 app.use("/api/lots", lotRoutes);
 
 app.get("/", (req, res) => {
