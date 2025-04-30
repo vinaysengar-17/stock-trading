@@ -1,23 +1,25 @@
 import Lot from "../models/Lot.js";
-
-// get All Lots
 export const getAllLots = async (req, res, next) => {
   try {
+    console.log("Query parameters:", req.query); // Log incoming query
+
     const { stock_name, method = "FIFO" } = req.query;
     const query = {};
 
-    // If stock_name is provided, add it to the query
     if (stock_name) {
       query.stock_name = stock_name;
     }
-    // Method is always required (FIFO or LIFO)
-    query.method = method;
 
-    // Find lots based on query and sort by createdAt
-    // FIFO: oldest lot first, LIFO: newest lot first
+    // console.log("Final query:", query); // Log the final query
+
+    // Fetch lots from database with sorting:
+    // - FIFO: Oldest first (createdAt ascending)
+    // - LIFO: Newest first (createdAt descending)
     const lots = await Lot.find(query).sort({
       createdAt: method === "FIFO" ? 1 : -1,
     });
+
+    // console.log("Found lots:", lots); // Log the results
 
     res.json({
       status: "success",
@@ -25,11 +27,17 @@ export const getAllLots = async (req, res, next) => {
       message: "Lots retrieved successfully",
     });
   } catch (error) {
-    next(error); // Pass error to global error handler
+    next(error);
   }
 };
 
-// get lot by id 
+/**
+ * Controller for retrieving a single lot by ID
+ * @param {Object} req - Express request object with ID parameter
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+
 export const getLotById = async (req, res, next) => {
   try {
     // Find the lot by MongoDB ObjectId

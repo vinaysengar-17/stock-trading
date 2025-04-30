@@ -2,68 +2,82 @@ import Lot from "../models/Lot.js";
 import Trade from "../models/Trade.js";
 import { realizeLotsFIFO, realizeLotsLIFO } from "./lotStrategies.js";
 
-// Create a single trade
+/**
+ * Creates a new trade and handles associated lot creation/realization
+ * @param {Object} tradeData - Trade data including stock_name, quantity, price, etc.
+ * @param {string} [method="FIFO"] - Inventory method ("FIFO" or "LIFO")
+ * @returns {Promise<Object>} Object containing the created trade and realization results (if sell)
+ * @throws {Error} If trade creation or lot processing fails
+ */
 export const createTrade = async (tradeData, method = "FIFO") => {
   try {
-    // Create a new trade document with the provided data
+    // Create and save the new trade document
     const trade = new Trade(tradeData);
-    await trade.save(); // Save the trade to the database
+    await trade.save();
 
-    let realizationResult = null; // Variable to store lot realization result
+    let realizationResult = null;
 
-    // If the trade is a sell (negative quantity), realize lots using FIFO or LIFO
+    // Handle sell trades (negative quantity)
     if (trade.quantity < 0) {
+      // Select the appropriate realization strategy based on method
       const realizeLots = method === "FIFO" ? realizeLotsFIFO : realizeLotsLIFO;
-      // Perform lot realization based on the selected method
+      // Execute the lot realization process
       realizationResult = await realizeLots(trade);
-    } else {
-      // If the trade is a buy (positive quantity), create a new lot for the stock
+    }
+    // Handle buy trades (positive quantity)
+    else {
       await Lot.create({
-        trade_id: trade._id,       // Associate the lot with the trade
-        stock_name: trade.stock_name, // Stock name
-        lot_quantity: trade.quantity, // Quantity of the stock in the lot
-        price: trade.price,         // Price at which the stock was bought
-        method,                     // FIFO or LIFO method used for lot realization
+        trade_id: trade._id,
+        stock_name: trade.stock_name,
+        lot_quantity: trade.quantity,
+        price: trade.price,
       });
     }
 
-    // Return the created trade and any lot realization result (if applicable)
     return {
       trade,
       realizationResult,
     };
   } catch (error) {
-    // If any error occurs during the creation process, throw the error
     throw error;
   }
 };
 
-// Get all trades, sorted by timestamp in descending order (most recent first)
+/**
+ * Retrieves all trades sorted by timestamp (newest first)
+ * @returns {Promise<Array>} Array of all trade documents
+ */
 export const getAllTrades = async () => {
   return await Trade.find({}).sort({ timestamp: -1 });
 };
 
-// Get a single trade by its ID
+/**
+ * Retrieves a single trade by its ID
+ * @param {string} id - MongoDB ID of the trade
+ * @returns {Promise<Object|null>} The trade document or null if not found
+ */
 export const getTradeById = async (id) => {
   return Trade.findById(id);
 };
 
-// Bulk create multiple trades and handle errors for each trade
+/**
+ * Creates multiple trades in bulk with consistent method
+ * @param {Array} tradesData - Array of trade data objects
+ * @param {string} [method="FIFO"] - Inventory method to use for all trades
+ * @returns {Promise<Array>} Array of results for each trade creation attempt
+ */
 export const bulkCreateTrades = async (tradesData, method = "FIFO") => {
-  const results = []; // Array to store the results of each trade creation attempt
+  const results = [];
 
-  // Iterate over each trade data and attempt to create it
+  // Process each trade sequentially
   for (const tradeData of tradesData) {
     try {
-      // Attempt to create the trade and handle lot realization if necessary
       const trade = await createTrade(tradeData, method);
       results.push({ success: true, trade });
     } catch (error) {
-      // If an error occurs during trade creation, log the error message
       results.push({ success: false, error: error.message });
     }
   }
 
-  // Return the array of results for all trade creation attempts
   return results;
 };
